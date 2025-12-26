@@ -242,14 +242,84 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 2. القائمة الجانبية
+# ==========================================
+# 📂 2. القائمة الجانبية (مصدر البيانات)
+# ==========================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2920/2920349.png", width=100)
+    st.image("https://cdn-icons-png.flaticon.com/512/2804/2804702.png", width=80)
     st.title("لوحة التحكم")
     st.write("---")
-    uploaded_file = st.file_uploader("📂 رفع ملف البيانات (Excel/CSV)", type=['csv', 'xlsx'])
-    use_dummy = st.checkbox("استخدام بيانات تجريبية", value=False)
+    
+    # 1. اختيار طريقة الإدخال
+    data_source = st.radio(
+        "مصدر البيانات:", 
+        ("📂 رفع ملف (Excel/CSV)", "✍️ إدخال يدوي (جدول)", "🎲 بيانات تجريبية")
+    )
+    
+    df = None # تهيئة المتغير
+    
+    # --- الخيار 1: رفع ملف ---
+    if data_source == "📂 رفع ملف (Excel/CSV)":
+        uploaded_file = st.file_uploader("اختر الملف:", type=['csv', 'xlsx'])
+        if uploaded_file:
+            df = load_data(uploaded_file)
+            if df is None: st.error("❌ الملف تالف.")
+    
+    # --- الخيار 2: إدخال يدوي (الميزة الجديدة) ---
+    elif data_source == "✍️ إدخال يدوي (جدول)":
+        st.info("قم بتعريف الأعمدة أولاً، ثم املأ الجدول.")
+        
+        # خطوة 1: تعريف الأعمدة
+        cols_input = st.text_input("أسماء الأعمدة (افصل بينها بفاصلة):", value="الماكينة, الوزن, الطول")
+        columns = [x.strip() for x in cols_input.split(',')]
+        
+        # خطوة 2: إنشاء جدول فارغ (أو استرجاعه من الذاكرة)
+        if 'manual_data' not in st.session_state:
+            # ننشئ 5 صفوف فارغة للبداية
+            st.session_state.manual_data = pd.DataFrame([[""]*len(columns)]*5, columns=columns)
+        
+        # تحديث الأعمدة إذا تغيرت
+        if list(st.session_state.manual_data.columns) != columns:
+             st.session_state.manual_data = pd.DataFrame([[""]*len(columns)]*5, columns=columns)
+
+        # خطوة 3: المحرر التفاعلي
+        st.write("▼ املأ البيانات هنا:")
+        edited_df = st.data_editor(
+            st.session_state.manual_data, 
+            num_rows="dynamic", # يسمح بإضافة وحذف الصفوف
+            use_container_width=True
+        )
+        
+        # خطوة 4: تنظيف البيانات وتحويل الأرقام
+        if not edited_df.empty:
+            # محاولة تحويل النصوص إلى أرقام تلقائياً
+            for col in edited_df.columns:
+                edited_df[col] = pd.to_numeric(edited_df[col], errors='ignore')
+            
+            # حذف الصفوف الفارغة تماماً
+            df = edited_df.dropna(how='all')
+            
+            # تحديث الذاكرة
+            st.session_state.manual_data = edited_df
+
+    # --- الخيار 3: بيانات تجريبية ---
+    elif data_source == "🎲 بيانات تجريبية":
+        if st.button("توليد بيانات عشوائية"):
+            np.random.seed(42)
+            data = {
+                'الإنتاجية': np.random.normal(100, 15, 100),
+                'الرضا': np.random.choice(['عال', 'متوسط', 'منخفض'], 100),
+                'الحرارة': np.random.normal(25, 5, 100),
+                'الخطأ': np.random.poisson(2, 100)
+            }
+            data['الإنتاجية'] += np.where(data['الرضا']=='عال', 20, 0)
+            df = pd.DataFrame(data)
+            st.success("تم توليد البيانات بنجاح!")
+        else:
+            st.info("اضغط الزر لتوليد البيانات.")
+
     st.markdown("---")
-    st.info("💡 **تأكد أن الصف الأول يحتوي على أسماء الأعمدة.**")
+    st.caption("v4.0 - Engineered for Excellence")
 
 # 3. تحميل البيانات
 df = None
@@ -474,3 +544,4 @@ if df is not None:
 
 else:
     st.info("👋 مرحباً! الرجاء رفع ملف البيانات من القائمة الجانبية.")
+
